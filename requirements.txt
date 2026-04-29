@@ -1,6 +1,7 @@
 fastapi
 uvicorn
-tensorflow == 2.15.0 
+tensorflow==2.21.0     
+# or tensorflow-cpu==2.21.0 (lighter, recommended for Render)
 pillow
 numpy
 python-multipart
