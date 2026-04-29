@@ -10,7 +10,7 @@ app = FastAPI(title="Watermark Removal API")
 
 # Load model (done once at startup)
 print("Loading U-Net model...")
-model = tf.keras.models.load_model("watermark_removal_model_final.h5")
+model = tf.keras.models.load_model("watermark_removal_model_final.h5",compile=False)
 print("✅ Model loaded successfully!")
 
 IMG_SIZE = 256
