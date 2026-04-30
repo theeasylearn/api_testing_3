@@ -22,9 +22,16 @@ def preprocess_image(image_bytes):
     img_array = np.expand_dims(img_array, axis=0).astype(np.float32)
     return img_array, img
 
-def postprocess_image(pred):
-    pred = (pred[0] * 255).clip(0, 255).astype(np.uint8)
-    return Image.fromarray(pred)
+def postprocess_image(input_array, pred):
+    pred = pred[0]  # Remove batch dimension
+    
+    # === MOST COMMON FIX FOR BLANK IMAGE ===
+    # If model predicts watermark, subtract it from original
+    cleaned = input_array[0] - pred          # Subtract predicted watermark
+    cleaned = np.clip(cleaned, 0, 1)         # Keep values between 0 and 1
+    cleaned = (cleaned * 255).astype(np.uint8)
+    
+    return Image.fromarray(cleaned)
 
 @app.post("/remove-watermark")
 async def remove_watermark(file: UploadFile = File(...)):
@@ -38,7 +45,7 @@ async def remove_watermark(file: UploadFile = File(...)):
         # Inference
         prediction = model.predict(input_array, verbose=0)
 
-        cleaned_pil = postprocess_image(prediction)
+        cleaned_pil = postprocess_image(input_array, prediction)
 
         # Return both images as base64 or raw
         output_buffer = io.BytesIO()
