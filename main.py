@@ -5,6 +5,15 @@ import numpy as np
 from PIL import Image
 import io
 import asyncio
+tf.config.set_visible_devices([], 'GPU')  # Force CPU
+# Limit memory growth
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    try:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+    except RuntimeError as e:
+        print(e)
 
 app = FastAPI(title="Watermark Removal API")
 
@@ -16,8 +25,8 @@ model = tf.keras.models.load_model(
 )
 print("✅ Model loaded successfully!")
 
-IMG_SIZE = 256   # You can reduce to 192 or 128 if still slow
-
+# IMG_SIZE = 256   # You can reduce to 192 or 128 if still slow
+IMG_SIZE = 128   # ← Change to 128 or 160
 def preprocess_image(image_bytes):
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     img = img.resize((IMG_SIZE, IMG_SIZE))
