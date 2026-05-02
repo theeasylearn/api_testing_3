@@ -1,0 +1,1 @@
+{"detail":"Failed to process image: Input 0 with name 'input_layer' of layer 'U_Net_Watermark_Removal' is incompatible with the layer: expected shape=(None, 256, 256, 3), found shape=(1, 128, 128, 3)"}
