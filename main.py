@@ -29,10 +29,13 @@ def preprocess_image(image_bytes):
 
 def postprocess_image(input_array, pred):
     pred = pred[0]
-    # Subtraction method
-    cleaned = input_array[0] - pred
-    cleaned = np.clip(cleaned, 0.0, 1.0)
-    cleaned = (cleaned * 255).astype(np.uint8)
+    
+    # Direct prediction (try this now)
+    cleaned = (pred * 255).clip(0, 255).astype(np.uint8)
+    
+    # If still bad, try this variant:
+    # cleaned = ((1.0 - pred) * 255).clip(0, 255).astype(np.uint8)
+    
     return Image.fromarray(cleaned)
 
 @app.post("/remove-watermark")
