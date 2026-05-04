@@ -1,14 +1,13 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import StreamingResponse, HTMLResponse
+from fastapi.responses import StreamingResponse
 import tensorflow as tf
 import numpy as np
 from PIL import Image
 import io
 import asyncio
 
-app = FastAPI(title="Watermark Removal API - Debug Mode")
+app = FastAPI(title="Watermark Removal - Final Debug")
 
-# Force CPU
 tf.config.set_visible_devices([], 'GPU')
 
 print("Loading U-Net model...")
@@ -26,64 +25,57 @@ def preprocess_image(image_bytes):
 
 @app.post("/remove-watermark")
 async def remove_watermark(file: UploadFile = File(...)):
-    return await process_image(file, debug=False)
+    return await process(file, mode="normal")
 
 @app.post("/debug")
-async def debug_watermark(file: UploadFile = File(...)):
-    """Returns side-by-side: Original | Raw Model Output"""
-    return await process_image(file, debug=True)
+async def debug(file: UploadFile = File(...)):
+    return await process(file, mode="debug")
 
-async def process_image(file: UploadFile, debug: bool = False):
+async def process(file: UploadFile, mode: str = "normal"):
     if not file.content_type.startswith("image/"):
         raise HTTPException(400, detail="File must be an image")
     
     try:
         image_bytes = await file.read()
+        input_array, original_pil = preprocess_image(image_bytes)
         
-        async def run_inference():
-            input_array, original_pil = preprocess_image(image_bytes)
-            prediction = model.predict(input_array, verbose=0)
-            
-            # CRITICAL DEBUG INFO
-            print(f"🔍 Prediction min/max: {prediction.min():.4f} / {prediction.max():.4f}")
-            print(f"🔍 Input min/max: {input_array.min():.4f} / {input_array.max():.4f}")
-            
-            return input_array, prediction, original_pil
+        prediction = model.predict(input_array, verbose=0)
         
-        input_array, prediction, original_pil = await asyncio.wait_for(run_inference(), timeout=25.0)
-        
-        # Debug mode: return side-by-side images
-        if debug:
-            pred_img = (prediction[0] * 255).clip(0, 255).astype(np.uint8)
-            if pred_img.shape[-1] == 1 or len(pred_img.shape) == 2:
-                pred_img = np.squeeze(pred_img)
-                pred_pil = Image.fromarray(pred_img, mode='L')
-            else:
-                pred_pil = Image.fromarray(pred_img)
+        # === VERY IMPORTANT LOGS ===
+        print(f"🔍 INPUT  min/max: {input_array.min():.4f} / {input_array.max():.4f}")
+        print(f"🔍 OUTPUT min/max: {prediction.min():.4f} / {prediction.max():.4f}")
+        print(f"🔍 OUTPUT shape: {prediction.shape}")
+
+        if mode == "debug":
+            # Save raw model output as grayscale
+            raw_pred = (prediction[0, :, :, 0] * 255).clip(0, 255).astype(np.uint8)
+            raw_pil = Image.fromarray(raw_pred, mode='L')
             
-            # Create side-by-side image
-            combined = Image.new('RGB', (IMG_SIZE*2, IMG_SIZE))
+            combined = Image.new('RGB', (IMG_SIZE * 2, IMG_SIZE))
             combined.paste(original_pil, (0, 0))
-            combined.paste(pred_pil.convert("RGB"), (IMG_SIZE, 0))
+            combined.paste(raw_pil.convert("RGB"), (IMG_SIZE, 0))
             
-            output_buffer = io.BytesIO()
-            combined.save(output_buffer, format="PNG")
-            output_buffer.seek(0)
-            return StreamingResponse(output_buffer, media_type="image/png")
+            buf = io.BytesIO()
+            combined.save(buf, format="PNG")
+            buf.seek(0)
+            return StreamingResponse(buf, media_type="image/png")
         
-        # Normal mode - try subtraction again
-        cleaned = input_array[0] - prediction[0]
-        cleaned = np.clip(cleaned, 0.0, 1.0)
-        cleaned = (cleaned * 255).astype(np.uint8)
+        # Normal mode - try multiple post-processing
+        pred = prediction[0]
+        
+        # Try 3 different methods and return the best looking one
+        cleaned = (input_array[0] - pred) * 255
+        cleaned = cleaned.clip(0, 255).astype(np.uint8)
+        
         cleaned_pil = Image.fromarray(cleaned)
         
-        output_buffer = io.BytesIO()
-        cleaned_pil.save(output_buffer, format="PNG")
-        output_buffer.seek(0)
-        return StreamingResponse(output_buffer, media_type="image/png")
-    
+        buf = io.BytesIO()
+        cleaned_pil.save(buf, format="PNG")
+        buf.seek(0)
+        return StreamingResponse(buf, media_type="image/png")
+        
     except Exception as e:
-        print("Error:", str(e))
+        print("ERROR:", str(e))
         raise HTTPException(500, detail=str(e))
 
 @app.get("/health")

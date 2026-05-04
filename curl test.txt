@@ -1,1 +1,3 @@
 curl -X POST https://api-testing-3-f0v7.onrender.com/remove-watermark -F "file=@C:/Users/ankit/Downloads/2.jpg" --output 2.jpeg
+
+curl -X POST https://api-testing-3-f0v7.onrender.com/debug ^ -F "file=@C:/Users/ankit/Downloads/2.jpg" ^ --output debug_output.png
